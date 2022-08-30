@@ -78,39 +78,29 @@ public:
 
 typedef Vec3<float> Vec3f;
 
-class Sphere {
-public:
+struct Sphere {
   Vec3f center;                      /// position of the sphere
   float radius, radius2;             /// sphere radius and radius^2
   Vec3f surfaceColor, emissionColor; /// surface color and emission (light)
   float transparency, reflection;    /// surface transparency and reflectivity
-  Sphere()
-      : center(Vec3f()), radius(0), radius2(0), surfaceColor(Vec3f()),
-        emissionColor(Vec3f()), transparency(0), reflection(0) {}
-  Sphere(const Vec3f &c, const float &r, const Vec3f &sc, const float &refl = 0,
-         const float &transp = 0, const Vec3f &ec = 0)
-      : center(c), radius(r), radius2(r * r), surfaceColor(sc),
-        emissionColor(ec), transparency(transp), reflection(refl) { /* empty */
-  }
-  //[comment]
-  // Compute a ray-sphere intersection using the geometric solution
-  //[/comment]
-  bool intersect(const Vec3f &rayorig, const Vec3f &raydir, float &t0,
-                 float &t1) const {
-    Vec3f l = center - rayorig;
-    float tca = l.dot(raydir);
-    if (tca < 0)
-      return false;
-    float d2 = l.dot(l) - tca * tca;
-    if (d2 > radius2)
-      return false;
-    float thc = sqrt(radius2 - d2);
-    t0 = tca - thc;
-    t1 = tca + thc;
-
-    return true;
-  }
 };
+
+// Compute a ray-sphere intersection using the geometric solution
+bool intersect(const Sphere sphere, const Vec3f &rayorig, const Vec3f &raydir,
+               float &t0, float &t1) {
+  Vec3f l = sphere.center - rayorig;
+  float tca = l.dot(raydir);
+  if (tca < 0)
+    return false;
+  float d2 = l.dot(l) - tca * tca;
+  if (d2 > sphere.radius2)
+    return false;
+  float thc = sqrt(sphere.radius2 - d2);
+  t0 = tca - thc;
+  t1 = tca + thc;
+
+  return true;
+}
 
 //[comment]
 // This variable controls the maximum recursion depth
@@ -144,7 +134,7 @@ Vec3f trace(const Vec3f &rayorig, const Vec3f &raydir, const Sphere *spheres,
   // find intersection of this ray with the sphere in the scene
   for (unsigned i = 0; i < num_spheres; ++i) {
     float t0 = INFINITY, t1 = INFINITY;
-    if (spheres[i].intersect(rayorig, raydir, t0, t1)) {
+    if (intersect(spheres[i], rayorig, raydir, t0, t1)) {
       if (t0 < 0)
         t0 = t1;
       if (t0 < tnear) {
@@ -210,8 +200,8 @@ Vec3f trace(const Vec3f &rayorig, const Vec3f &raydir, const Sphere *spheres,
         for (unsigned j = 0; j < num_spheres; ++j) {
           if (i != j) {
             float t0, t1;
-            if (spheres[j]
-                    .intersect(phit + nhit * bias, lightDirection, t0, t1)) {
+            if (intersect(spheres[j], phit + nhit * bias, lightDirection, t0,
+                          t1)) {
               transmission = 0;
               break;
             }
@@ -272,15 +262,49 @@ int main(int argc, char **argv) {
   const unsigned num_spheres = 6;
   Sphere spheres[6];
   // position, radius, surface color, reflectivity, transparency, emission color
-  spheres[0] =
-      Sphere(Vec3f(0.0, -10004, -20), 10000, Vec3f(0.20, 0.20, 0.20), 0, 0.0);
-  spheres[1] = Sphere(Vec3f(0.0, 0, -20), 4, Vec3f(1.00, 0.32, 0.36), 1, 0.0);
-  spheres[2] = Sphere(Vec3f(5.0, -1, -15), 2, Vec3f(0.90, 0.76, 0.46), 0, 0.0);
-  spheres[3] = Sphere(Vec3f(5.0, 0, -25), 3, Vec3f(0.65, 0.77, 0.97), 1, 0.0);
-  spheres[4] = Sphere(Vec3f(-5.5, 0, -15), 3, Vec3f(0.90, 0.90, 0.90), 1, 0.0);
+  spheres[0] = { .center = Vec3f(0.0, -10004, -20),
+                 .radius = 10000,
+                 .radius2 = 10000 * 10000,
+                 .surfaceColor = Vec3f(0.20, 0.20, 0.20),
+                 .emissionColor = Vec3f(),
+                 .transparency = 0,
+                 .reflection = 0 };
+  spheres[1] = { .center = Vec3f(0.0, 0, -20),
+                 .radius = 4,
+                 .radius2 = 4 * 4,
+                 .surfaceColor = Vec3f(1.00, 0.32, 0.36),
+                 .emissionColor = Vec3f(),
+                 .transparency = 0,
+                 .reflection = 1 };
+  spheres[2] = { .center = Vec3f(5.0, -1, -15),
+                 .radius = 2,
+                 .radius2 = 2 * 2,
+                 .surfaceColor = Vec3f(0.90, 0.76, 0.46),
+                 .emissionColor = Vec3f(),
+                 .transparency = 0,
+                 .reflection = 0 };
+  spheres[3] = { .center = Vec3f(5.0, 0, -25),
+                 .radius = 3,
+                 .radius2 = 3 * 3,
+                 .surfaceColor = Vec3f(0.65, 0.77, 0.97),
+                 .emissionColor = Vec3f(),
+                 .transparency = 0,
+                 .reflection = 1 };
+  spheres[4] = { .center = Vec3f(-5.5, 0, -15),
+                 .radius = 3,
+                 .radius2 = 3 * 3,
+                 .surfaceColor = Vec3f(0.90, 0.90, 0.90),
+                 .emissionColor = Vec3f(),
+                 .transparency = 0,
+                 .reflection = 1 };
   // light
-  spheres[5] =
-      Sphere(Vec3f(0.0, 20, -30), 3, Vec3f(0.00, 0.00, 0.00), 0, 0.0, Vec3f(3));
+  spheres[5] = { .center = Vec3f(0.0, 20, -30),
+                 .radius = 3,
+                 .radius2 = 3 * 3,
+                 .surfaceColor = Vec3f(0.00, 0.00, 0.00),
+                 .emissionColor = Vec3f(3),
+                 .transparency = 0,
+                 .reflection = 0 };
   render(spheres, num_spheres);
 
   return 0;
