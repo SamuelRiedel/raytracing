@@ -24,7 +24,6 @@
 #include <cstdio>
 #include <cmath>
 #include <fstream>
-#include <vector>
 #include <iostream>
 #include <cassert>
 
@@ -78,6 +77,8 @@ public:
     float radius, radius2;                  /// sphere radius and radius^2
     Vec3f surfaceColor, emissionColor;      /// surface color and emission (light)
     float transparency, reflection;         /// surface transparency and reflectivity
+    Sphere() :
+      center(Vec3f()), radius(0), radius2(0), surfaceColor(Vec3f()), emissionColor(Vec3f()), transparency(0), reflection(0) {}
     Sphere(
         const Vec3f &c,
         const float &r,
@@ -129,14 +130,15 @@ float mix(const float &a, const float &b, const float &mix)
 Vec3f trace(
     const Vec3f &rayorig,
     const Vec3f &raydir,
-    const std::vector<Sphere> &spheres,
+    const Sphere* spheres,
+    const unsigned num_spheres,
     const int &depth)
 {
     //if (raydir.length() != 1) std::cerr << "Error " << raydir << std::endl;
     float tnear = INFINITY;
     const Sphere* sphere = NULL;
     // find intersection of this ray with the sphere in the scene
-    for (unsigned i = 0; i < spheres.size(); ++i) {
+    for (unsigned i = 0; i < num_spheres; ++i) {
         float t0 = INFINITY, t1 = INFINITY;
         if (spheres[i].intersect(rayorig, raydir, t0, t1)) {
             if (t0 < 0) t0 = t1;
@@ -167,7 +169,7 @@ Vec3f trace(
         // are already normalized)
         Vec3f refldir = raydir - nhit * 2 * raydir.dot(nhit);
         refldir.normalize();
-        Vec3f reflection = trace(phit + nhit * bias, refldir, spheres, depth + 1);
+        Vec3f reflection = trace(phit + nhit * bias, refldir, spheres, num_spheres, depth + 1);
         Vec3f refraction = 0;
         // if the sphere is also transparent compute refraction ray (transmission)
         if (sphere->transparency) {
@@ -176,7 +178,7 @@ Vec3f trace(
             float k = 1 - eta * eta * (1 - cosi * cosi);
             Vec3f refrdir = raydir * eta + nhit * (eta *  cosi - sqrt(k));
             refrdir.normalize();
-            refraction = trace(phit - nhit * bias, refrdir, spheres, depth + 1);
+            refraction = trace(phit - nhit * bias, refrdir, spheres, num_spheres, depth + 1);
         }
         // the result is a mix of reflection and refraction (if the sphere is transparent)
         surfaceColor = (
@@ -185,13 +187,13 @@ Vec3f trace(
     }
     else {
         // it's a diffuse object, no need to raytrace any further
-        for (unsigned i = 0; i < spheres.size(); ++i) {
+        for (unsigned i = 0; i < num_spheres; ++i) {
             if (spheres[i].emissionColor.x > 0) {
                 // this is a light
                 Vec3f transmission = 1;
                 Vec3f lightDirection = spheres[i].center - phit;
                 lightDirection.normalize();
-                for (unsigned j = 0; j < spheres.size(); ++j) {
+                for (unsigned j = 0; j < num_spheres; ++j) {
                     if (i != j) {
                         float t0, t1;
                         if (spheres[j].intersect(phit + nhit * bias, lightDirection, t0, t1)) {
@@ -214,7 +216,7 @@ Vec3f trace(
 // trace it and return a color. If the ray hits a sphere, we return the color of the
 // sphere at the intersection point, else we return the background color.
 //[/comment]
-void render(const std::vector<Sphere> &spheres)
+void render(const Sphere* spheres, unsigned num_spheres)
 {
     unsigned width = 640, height = 480;
     Vec3f *image = new Vec3f[width * height], *pixel = image;
@@ -228,7 +230,7 @@ void render(const std::vector<Sphere> &spheres)
             float yy = (1 - 2 * ((y + 0.5) * invHeight)) * angle;
             Vec3f raydir(xx, yy, -1);
             raydir.normalize();
-            *pixel = trace(Vec3f(0), raydir, spheres, 0);
+            *pixel = trace(Vec3f(0), raydir, spheres, num_spheres, 0);
         }
     }
     // Save result to a PPM image (keep these flags if you compile under Windows)
@@ -251,16 +253,17 @@ void render(const std::vector<Sphere> &spheres)
 int main(int argc, char **argv)
 {
     srand48(13);
-    std::vector<Sphere> spheres;
+    const unsigned num_spheres = 6;
+    Sphere spheres[6];
     // position, radius, surface color, reflectivity, transparency, emission color
-    spheres.push_back(Sphere(Vec3f( 0.0, -10004, -20), 10000, Vec3f(0.20, 0.20, 0.20), 0, 0.0));
-    spheres.push_back(Sphere(Vec3f( 0.0,      0, -20),     4, Vec3f(1.00, 0.32, 0.36), 1, 0.0));
-    spheres.push_back(Sphere(Vec3f( 5.0,     -1, -15),     2, Vec3f(0.90, 0.76, 0.46), 0, 0.0));
-    spheres.push_back(Sphere(Vec3f( 5.0,      0, -25),     3, Vec3f(0.65, 0.77, 0.97), 1, 0.0));
-    spheres.push_back(Sphere(Vec3f(-5.5,      0, -15),     3, Vec3f(0.90, 0.90, 0.90), 1, 0.0));
+    spheres[0] = Sphere(Vec3f( 0.0, -10004, -20), 10000, Vec3f(0.20, 0.20, 0.20), 0, 0.0);
+    spheres[1] = Sphere(Vec3f( 0.0,      0, -20),     4, Vec3f(1.00, 0.32, 0.36), 1, 0.0);
+    spheres[2] = Sphere(Vec3f( 5.0,     -1, -15),     2, Vec3f(0.90, 0.76, 0.46), 0, 0.0);
+    spheres[3] = Sphere(Vec3f( 5.0,      0, -25),     3, Vec3f(0.65, 0.77, 0.97), 1, 0.0);
+    spheres[4] = Sphere(Vec3f(-5.5,      0, -15),     3, Vec3f(0.90, 0.90, 0.90), 1, 0.0);
     // light
-    spheres.push_back(Sphere(Vec3f( 0.0,     20, -30),     3, Vec3f(0.00, 0.00, 0.00), 0, 0.0, Vec3f(3)));
-    render(spheres);
+    spheres[5] = Sphere(Vec3f( 0.0,     20, -30),     3, Vec3f(0.00, 0.00, 0.00), 0, 0.0, Vec3f(3));
+    render(spheres, num_spheres);
     
     return 0;
 }
