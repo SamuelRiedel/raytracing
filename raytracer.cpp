@@ -82,6 +82,8 @@ Vec3 vec_normalize(Vec3 v) {
   return v;
 }
 
+void vec_print(Vec3 v) { printf("%f, %f, %f\n", v.x, v.y, v.z); }
+
 typedef struct Sphere {
   Vec3 center;                      /// position of the sphere
   float radius, radius2;            /// sphere radius and radius^2
@@ -241,16 +243,10 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
 //[/comment]
 void render(const Sphere *spheres, unsigned num_spheres) {
   Vec3 *pixel = image;
-  float invWidth = 1 / (float)WIDTH;
-  float invHeight = 1 / (float)HEIGHT;
-  float fov = 30, aspectratio = WIDTH / (float)HEIGHT;
-  float angle = tan(M_PI * 0.5 * fov / 180.);
   // Trace rays
-  for (unsigned y = 0; y < HEIGHT; ++y) {
-    for (unsigned x = 0; x < WIDTH; ++x, ++pixel) {
-      float xx = (2 * ((x + 0.5) * invWidth) - 1) * angle * aspectratio;
-      float yy = (1 - 2 * ((y + 0.5) * invHeight)) * angle;
-      Vec3 raydir = VEC3_xyz(xx, yy, -1);
+  for (int y = 0; y < HEIGHT; ++y) {
+    for (int x = 0; x < WIDTH; ++x, ++pixel) {
+      Vec3 raydir = VEC3_xyz(-WIDTH / 2 + x, HEIGHT / 2 - y, -WIDTH * 1.0);
       raydir = vec_normalize(raydir);
       *pixel = trace(VEC3_x(0), raydir, spheres, num_spheres, 0);
     }
@@ -291,41 +287,41 @@ int main(int argc, char **argv) {
                           .surfaceColor = VEC3_xyz(0.341, 0.459, 0.565),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 1 };
+                          .reflection = 0 };
   spheres[2] = (Sphere) { .center = VEC3_xyz(5.0, -1, -15),
                           .radius = 2,
                           .radius2 = 2 * 2,
                           .surfaceColor = VEC3_xyz(0.976, 0.780, 0.310),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 1 };
+                          .reflection = 0 };
   spheres[3] = (Sphere) { .center = VEC3_xyz(5.0, 0, -25),
                           .radius = 3,
                           .radius2 = 3 * 3,
                           .surfaceColor = VEC3_xyz(0.565, 0.745, 0.427),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 1 };
+                          .reflection = 0 };
   spheres[4] = (Sphere) { .center = VEC3_xyz(-5.5, 0, -15),
                           .radius = 3,
                           .radius2 = 3 * 3,
                           .surfaceColor = VEC3_xyz(1, 1, 1),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 1 };
+                          .reflection = 0 };
   // light
   spheres[5] = (Sphere) { .center = VEC3_xyz(30, 40, -5),
                           .radius = 1,
                           .radius2 = 1 * 1,
                           .surfaceColor = VEC3_xyz(0.00, 0.00, 0.00),
-                          .emissionColor = VEC3_x(2),
+                          .emissionColor = VEC3_x(1),
                           .transparency = 0,
                           .reflection = 0 };
   spheres[6] = (Sphere) { .center = VEC3_xyz(-20, 60, 50),
                           .radius = 1,
                           .radius2 = 1 * 1,
                           .surfaceColor = VEC3_xyz(0.00, 0.00, 0.00),
-                          .emissionColor = VEC3_x(2),
+                          .emissionColor = VEC3_x(1),
                           .transparency = 0,
                           .reflection = 0 };
   render(spheres, num_spheres);
