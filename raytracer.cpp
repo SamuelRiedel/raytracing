@@ -36,12 +36,18 @@
 #define M_PI 3.141592653589793
 #endif
 
+#define WIDTH (1280)
+#define HEIGHT (720)
+
+
 #define VEC3_xyz(X, Y, Z) ((Vec3) { .x = X, .y = Y, .z = Z })
 #define VEC3_x(X) VEC3_xyz(X, X, X)
 #define VEC3 VEC3_x(0)
 typedef struct Vec3 {
   float x, y, z;
 } Vec3;
+
+Vec3 image[WIDTH * HEIGHT];
 
 float vec_dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
@@ -235,18 +241,14 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
 // sphere at the intersection point, else we return the background color.
 //[/comment]
 void render(const Sphere *spheres, unsigned num_spheres) {
-  unsigned width = 640, height = 480;
-  // unsigned width = 3840, height = 2160;
-  // unsigned width = 1280, height = 720;
-  Vec3 image[width * height];
   Vec3 *pixel = image;
-  float invWidth = 1 / (float)width;
-  float invHeight = 1 / (float)height;
-  float fov = 30, aspectratio = width / (float)height;
+  float invWidth = 1 / (float)WIDTH;
+  float invHeight = 1 / (float)HEIGHT;
+  float fov = 30, aspectratio = WIDTH / (float)HEIGHT;
   float angle = tan(M_PI * 0.5 * fov / 180.);
   // Trace rays
-  for (unsigned y = 0; y < height; ++y) {
-    for (unsigned x = 0; x < width; ++x, ++pixel) {
+  for (unsigned y = 0; y < HEIGHT; ++y) {
+    for (unsigned x = 0; x < WIDTH; ++x, ++pixel) {
       float xx = (2 * ((x + 0.5) * invWidth) - 1) * angle * aspectratio;
       float yy = (1 - 2 * ((y + 0.5) * invHeight)) * angle;
       Vec3 raydir = VEC3_xyz(xx, yy, -1);
@@ -257,8 +259,8 @@ void render(const Sphere *spheres, unsigned num_spheres) {
   // Save result to a PPM image (keep these flags if you compile under Windows)
   FILE *fptr;
   fptr = fopen("./untitled.ppm", "wb");
-  fprintf(fptr, "P6\n%d %d\n255\n", width, height);
-  for (unsigned i = 0; i < width * height; ++i) {
+  fprintf(fptr, "P6\n%d %d\n255\n", WIDTH, HEIGHT);
+  for (unsigned i = 0; i < WIDTH * HEIGHT; ++i) {
     unsigned char x = image[i].x > 1 ? 255 : (unsigned char)(image[i].x * 255);
     unsigned char y = image[i].y > 1 ? 255 : (unsigned char)(image[i].y * 255);
     unsigned char z = image[i].z > 1 ? 255 : (unsigned char)(image[i].z * 255);
