@@ -106,9 +106,6 @@ bool intersect(const Sphere sphere, const Vec3 rayorig, const Vec3 raydir,
   float thc = sqrt(sphere.radius2 - d2);
   *t0 = tca - thc;
   *t1 = tca + thc;
-  // printf("l %3.3f, tca %3.3f, d2 %3.3f, thc %3.3f, t0 %3.3f t1 %3.3f\n", l.x,
-  // tca, d2, thc, *t0, *t1);
-
   return true;
 }
 
@@ -178,13 +175,16 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
   }
   if ((sphere->transparency > 0 || sphere->reflection > 0) &&
       depth < MAX_RAY_DEPTH) {
-    float facingratio = -vec_dot(raydir, nhit);
+    float facingratio = -vec_dot(raydir, nhit) / PRECISION;
     // change the mix value to tweak the effect
-    float fresneleffect = mix(pow(1 - facingratio, 3), 0.8, 0.2);
+    float fresneleffect = mix(pow(PRECISION - facingratio, 3),
+                              0.8 * (PRECISION * PRECISION * PRECISION), 0.2) /
+                          (PRECISION * PRECISION);
     // compute reflection direction (not need to normalize because all vectors
     // are already normalized)
     Vec3 refldir =
-        vec_subtract(raydir, vec_scale(nhit, 2 * vec_dot(raydir, nhit)));
+        vec_subtract(raydir, vec_scale(nhit, 2 * vec_dot(raydir, nhit) /
+                                                 PRECISION / PRECISION));
     refldir = vec_normalize(refldir);
     Vec3 reflection = trace(vec_add(phit, vec_scale(nhit, bias)), refldir,
                             spheres, num_spheres, depth + 1);
@@ -205,11 +205,12 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
     // the result is a mix of reflection and refraction (if the sphere is
     // transparent)
     surfaceColor = vec_multiply(
-        vec_add(
-            vec_scale(reflection, fresneleffect * sphere->reflection),
-            vec_scale(refraction, (1 - fresneleffect) * sphere->transparency)),
+        vec_add(vec_scale(reflection, fresneleffect * sphere->reflection),
+                vec_scale(refraction,
+                          (PRECISION - fresneleffect) * sphere->transparency)),
         sphere->surfaceColor);
-    surfaceColor = vec_scale(surfaceColor, 0.00390625); // Divide by 256
+    surfaceColor =
+        vec_scale(surfaceColor, 1.0 / 256 / PRECISION); // Divide by 256
   } else {
     // it's a diffuse object, no need to raytrace any further
     for (unsigned i = 0; i < num_spheres; ++i) {
@@ -285,7 +286,7 @@ int main(int argc, char **argv) {
   spheres[0] = (Sphere) { .center = VEC3_xyz(0.0, -10004, 0),
                           .radius = 10000,
                           .radius2 = 10000 * 10000,
-                          .surfaceColor = VEC3_xyz(20, 20, 20),
+                          .surfaceColor = VEC3_xyz(80, 80, 80),
                           .emissionColor = VEC3,
                           .transparency = 0,
                           .reflection = 0 };
@@ -295,28 +296,28 @@ int main(int argc, char **argv) {
                           .surfaceColor = VEC3_xyz(87, 117, 144),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 0 };
+                          .reflection = 1 };
   spheres[2] = (Sphere) { .center = VEC3_xyz(5, -1, -15),
                           .radius = 2,
                           .radius2 = 2 * 2,
                           .surfaceColor = VEC3_xyz(249, 199, 79),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 0 };
+                          .reflection = 1 };
   spheres[3] = (Sphere) { .center = VEC3_xyz(5.0, 0, -25),
                           .radius = 3,
                           .radius2 = 3 * 3,
                           .surfaceColor = VEC3_xyz(144, 190, 109),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 0 };
+                          .reflection = 1 };
   spheres[4] = (Sphere) { .center = VEC3_xyz(-5.5, 0, -15),
                           .radius = 3,
                           .radius2 = 3 * 3,
                           .surfaceColor = VEC3_xyz(255, 255, 255),
                           .emissionColor = VEC3,
                           .transparency = 0,
-                          .reflection = 0 };
+                          .reflection = 1 };
   // light
   spheres[5] = (Sphere) { .center = VEC3_xyz(30, 40, -5),
                           .radius = 1,
