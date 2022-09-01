@@ -191,13 +191,15 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
     Vec3 refraction = VEC3;
     // if the sphere is also transparent compute refraction ray (transmission)
     if (sphere->transparency) {
-      float ior = 1.1,
-            eta = (inside) ? ior
-                           : 1 / ior; // are we inside or outside the surface?
-      float cosi = -vec_dot(nhit, raydir);
-      float k = 1 - eta * eta * (1 - cosi * cosi);
-      Vec3 refrdir = vec_add(vec_scale(raydir, eta),
-                             vec_scale(nhit, (eta * cosi - sqrt(k))));
+      float ior = 1.1;
+      float eta =
+          (inside) ? ior : 1 / ior; // are we inside or outside the surface?
+      float cosi = -vec_dot(nhit, raydir) / PRECISION;
+      float k = (PRECISION * PRECISION) -
+                eta * eta * ((PRECISION * PRECISION) - cosi * cosi);
+      Vec3 refrdir =
+          vec_add(vec_scale(raydir, eta),
+                  vec_scale(nhit, (eta * cosi - sqrt(k)) / PRECISION));
       refrdir = vec_normalize(refrdir);
       refraction = trace(vec_subtract(phit, vec_scale(nhit, bias)), refrdir,
                          spheres, num_spheres, depth + 1);
@@ -295,7 +297,7 @@ int main(int argc, char **argv) {
                           .radius2 = 4 * 4,
                           .surfaceColor = VEC3_xyz(87, 117, 144),
                           .emissionColor = VEC3,
-                          .transparency = 0,
+                          .transparency = 1,
                           .reflection = 1 };
   spheres[2] = (Sphere) { .center = VEC3_xyz(5, -1, -15),
                           .radius = 2,
