@@ -93,19 +93,46 @@ Vec3 vec_negate(Vec3 v) {
   return (Vec3) { .x = -v.x, .y = -v.y, .z = -v.z };
 }
 Vec3 vec_multiply(Vec3 a, Vec3 b) {
-  return (Vec3) { .x = a.x * b.x / PRECISION,
-                  .y = a.y * b.y / PRECISION,
-                  .z = a.z * b.z / PRECISION };
+  return (Vec3) { .x = a.x * b.x, .y = a.y * b.y, .z = a.z * b.z };
+}
+
+Vec3 vec_normalize2(Vec3 v) {
+  // vec_print(v);
+  int nor2 = vec_length2(v);
+  if (nor2 > 0) {
+    int nor = sqrt(nor2);
+    v = vec_divide(vec_scale(v, PRECISION_SQRT), nor);
+    // printf("Normalize v %d %d %d, nor2 %d, nor %d\n", v.x, v.y, v.z, nor2,
+    // nor);
+  }
+  return v;
 }
 
 Vec3 vec_normalize(Vec3 v) {
   // vec_print(v);
-  int nor2 = vec_length2(v) * PRECISION;
-  if (nor2 > 0) {
-    int nor = sqrt(nor2);
-    v = vec_divide(vec_scale(v, PRECISION), nor);
-    // printf("Normalize v %d %d %d, nor2 %d, nor %d\n", v.x, v.y, v.z, nor2,
-    // nor);
+  // Check how much we should scale the values
+  if (vec_length2(v) < 0) {
+    // Overflow
+    int nor2 = vec_length2(vec_divide(v, PRECISION));
+    if (nor2 > 0) {
+      int nor = sqrt(nor2 * PRECISION);
+      v = vec_divide(v, nor);
+    }
+    printf("OVER\n");
+  } else if (vec_length2(v) > (INT_MAX / PRECISION / 4)) {
+    int nor2 = vec_length2(v);
+    if (nor2 > 0) {
+      int nor = sqrt(nor2);
+      v = vec_divide(vec_scale(v, PRECISION_SQRT), nor);
+    }
+  } else {
+    int nor2 = vec_length2(v) * PRECISION;
+    if (nor2 > 0) {
+      int nor = sqrt(nor2);
+      v = vec_divide(vec_scale(v, PRECISION), nor);
+      // printf("Normalize v %d %d %d, nor2 %d, nor %d\n", v.x, v.y, v.z, nor2,
+      // nor);
+    }
   }
   return v;
 }
@@ -267,13 +294,16 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
         }
         int dot = vec_dot(nhit, lightDirection);
         if (dot > 0) {
-          transmission *= dot / PRECISION / PRECISION;
+          transmission *= dot;
           Vec3 tmp = vec_scale(sphere->surfaceColor, transmission);
           tmp = vec_multiply(tmp, spheres[i].emissionColor);
-          tmp = vec_divide(tmp, 256); // Divide by 256
+          tmp = vec_divide(tmp, PRECISION * 256); // Divide by 256
           surfaceColor = vec_add(tmp, surfaceColor);
-          surfaceColor = sphere->surfaceColor;
+          // surfaceColor = sphere->surfaceColor;
+        } else {
+          surfaceColor = VEC3_x(128);
         }
+        // surfaceColor = VEC3_x(dot*256/PRECISION);
       }
     }
     // surfaceColor = VEC3_x(32*sphere_idx);
@@ -294,10 +324,9 @@ void render(const Sphere *spheres, unsigned num_spheres) {
   for (int y = 0; y < HEIGHT; ++y) {
     for (int x = 0; x < WIDTH; ++x, ++pixel) {
       Vec3 raydir = VEC3_xyz(-WIDTH / 2 + x, HEIGHT / 2 - y, -WIDTH * 1);
-      // raydir = vec_scale(raydir, PRECISION);
       raydir = vec_normalize(raydir);
-      printf("Check pixel %04d, raydir %d %d %d\n", x + y * WIDTH, raydir.x,
-             raydir.y, raydir.z);
+      // printf("Check pixel %04d, raydir %d %d %d\n", x + y * WIDTH, raydir.x,
+      //       raydir.y, raydir.z);
       *pixel = trace(VEC3_x(0), raydir, spheres, num_spheres, 0);
     }
   }
