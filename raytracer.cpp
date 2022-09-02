@@ -37,12 +37,12 @@
 #include <limits.h>
 #endif
 
-//#define WIDTH (1280)
-//#define HEIGHT (720)
-#define WIDTH (16)
-#define HEIGHT (8)
+#define WIDTH (1280)
+#define HEIGHT (720)
+//#define WIDTH (16)
+//#define HEIGHT (8)
 
-#define PRECISION (2048)
+#define PRECISION (1024)
 
 #define VEC3_xyz(X, Y, Z) ((Vec3) { .x = X, .y = Y, .z = Z })
 #define VEC3_x(X) VEC3_xyz(X, X, X)
@@ -53,10 +53,11 @@ typedef struct Vec3 {
 
 Vec3 image[WIDTH * HEIGHT];
 
-int vec_dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+void vec_print(Vec3 v) { printf("%d, %d, %d\n", v.x, v.y, v.z); }
+int vec_dot(Vec3 a, Vec3 b) { return (a.x * b.x) / PRECISION + (a.y * b.y) / PRECISION + (a.z * b.z) / PRECISION; }
 
 int vec_length2(Vec3 v) { return vec_dot(v, v); }
-int vec_length(Vec3 v) { return sqrt(vec_length(v)); }
+int vec_length(Vec3 v) { return sqrt(vec_length2(v)); }
 
 Vec3 vec_divide(Vec3 v, int s) {
   v.x /= s;
@@ -71,6 +72,12 @@ Vec3 vec_scale(Vec3 v, int s) {
   v.z *= s;
   return v;
 }
+ Vec3 vec_abs(Vec3 v) {
+   v.x = v.x < 0 ? -v.x : v.x;
+   v.y = v.y < 0 ? -v.y : v.y;
+   v.z = v.z < 0 ? -v.z : v.z;
+   return v;
+ }
 
 Vec3 vec_add(Vec3 a, Vec3 b) {
   return (Vec3) { .x = a.x + b.x, .y = a.y + b.y, .z = a.z + b.z };
@@ -82,19 +89,20 @@ Vec3 vec_negate(Vec3 v) {
   return (Vec3) { .x = -v.x, .y = -v.y, .z = -v.z };
 }
 Vec3 vec_multiply(Vec3 a, Vec3 b) {
-  return (Vec3) { .x = a.x * b.x, .y = a.y * b.y, .z = a.z * b.z };
+  return (Vec3) { .x = a.x * b.x / PRECISION, .y = a.y * b.y / PRECISION, .z = a.z * b.z / PRECISION };
 }
 
 Vec3 vec_normalize(Vec3 v) {
-  int nor2 = vec_length2(v);
+  //vec_print(v);
+  int nor2 = vec_length2(v) * PRECISION;
   if (nor2 > 0) {
     int nor = sqrt(nor2);
     v = vec_divide(vec_scale(v, PRECISION), nor);
+    //printf("Normalize v %d %d %d, nor2 %d, nor %d\n", v.x, v.y, v.z, nor2, nor);
   }
   return v;
 }
 
-void vec_print(Vec3 v) { printf("%d, %d, %d\n", v.x, v.y, v.z); }
 
 typedef struct Sphere {
   Vec3 center;                      /// position of the sphere
@@ -106,16 +114,21 @@ typedef struct Sphere {
 // Compute a ray-sphere intersection using the geometric solution
 bool intersect(const Sphere sphere, const Vec3 rayorig, const Vec3 raydir,
                int *t0, int *t1) {
+  //vec_print(sphere.center);
+  //vec_print(raydir);
   Vec3 l = vec_subtract(sphere.center, rayorig);
-  int tca = vec_dot(l, raydir) / PRECISION;
+  int tca = vec_dot(l, raydir);
+  //printf("l %d %d %d, tca %d\n", l.x, l.y, l.z, tca);
   if (tca < 0)
     return false;
-  int d2 = vec_length2(l) - tca * tca;
+  int d2 = vec_length2(l) - tca * tca / PRECISION;
+  //printf("d2 %d\n", d2);
   if (d2 > sphere.radius2)
     return false;
   int thc = sqrt(sphere.radius2 - d2);
   *t0 = tca - thc;
   *t1 = tca + thc;
+  //printf("thc %d, t0 %d, t1 %d\n", thc, *t0, *t1);
   return true;
 }
 
@@ -147,19 +160,23 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
            const unsigned num_spheres, const int depth) {
   // if (raydir.length() != 1) std::cerr << "Error " << raydir << std::endl;
   int tnear = INT_MAX;
+  int sphere_idx = -1;
   const Sphere *sphere = NULL;
   // find intersection of this ray with the sphere in the scene
   for (unsigned i = 0; i < num_spheres; ++i) {
     int t0 = INT_MAX, t1 = INT_MAX;
+    //printf("Check for sphere %d\n", i);
     if (intersect(spheres[i], rayorig, raydir, &t0, &t1)) {
       if (t0 < 0)
         t0 = t1;
       if (t0 < tnear) {
         tnear = t0;
         sphere = &spheres[i];
+        sphere_idx = i;
       }
     }
   }
+  //printf("Hit sphere %d\n\n", sphere_idx);
   // if there's no intersection return black or background color
   if (!sphere)
     return VEC3_x(128);
@@ -177,7 +194,7 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
   // set
   // the inside bool to true. Finally reverse the sign of IdotN which we want
   // positive.
-  int bias = 1; // add some bias to the point from which we will be tracing
+  int bias = PRECISION/2; // add some bias to the point from which we will be tracing
   bool inside = false;
   if (vec_dot(raydir, nhit) > 0) {
     nhit = vec_negate(nhit);
@@ -196,7 +213,7 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
         vec_subtract(raydir, vec_scale(nhit, 2 * vec_dot(raydir, nhit) /
                                                  PRECISION / PRECISION));
     refldir = vec_normalize(refldir);
-    Vec3 reflection = trace(vec_add(phit, vec_scale(nhit, bias)), refldir,
+    Vec3 reflection = trace(vec_add(phit, vec_divide(nhit, bias)), refldir,
                             spheres, num_spheres, depth + 1);
     Vec3 refraction = VEC3;
     // if the sphere is also transparent compute refraction ray (transmission)
@@ -211,7 +228,7 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
           vec_add(vec_scale(raydir, eta),
                   vec_scale(nhit, (eta * cosi - sqrt(k)) / PRECISION));
       refrdir = vec_normalize(refrdir);
-      refraction = trace(vec_subtract(phit, vec_scale(nhit, bias)), refrdir,
+      refraction = trace(vec_subtract(phit, vec_divide(nhit, bias)), refrdir,
                          spheres, num_spheres, depth + 1);
     }
     // the result is a mix of reflection and refraction (if the sphere is
@@ -225,6 +242,7 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
         vec_scale(surfaceColor, 1.0 / 256 / PRECISION); // Divide by 256
   } else {
     // it's a diffuse object, no need to raytrace any further
+    /*
     for (unsigned i = 0; i < num_spheres; ++i) {
       if (spheres[i].emissionColor.x > 0) {
         // this is a light
@@ -234,7 +252,7 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
         for (unsigned j = 0; j < num_spheres; ++j) {
           if (i != j) {
             int t0, t1;
-            if (intersect(spheres[j], vec_add(phit, vec_scale(nhit, bias)),
+            if (intersect(spheres[j], vec_add(phit, vec_divide(nhit, bias)),
                           lightDirection, &t0, &t1)) {
               transmission = 0;
               break;
@@ -248,9 +266,11 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
           tmp = vec_multiply(tmp, spheres[i].emissionColor);
           tmp = vec_divide(tmp, 256); // Divide by 256
           surfaceColor = vec_add(tmp, surfaceColor);
+          surfaceColor = sphere->surfaceColor;
         }
       }
-    }
+    }*/
+    surfaceColor = VEC3_x(32*sphere_idx);
   }
 
   return vec_add(surfaceColor, sphere->emissionColor);
@@ -268,8 +288,9 @@ void render(const Sphere *spheres, unsigned num_spheres) {
   for (int y = 0; y < HEIGHT; ++y) {
     for (int x = 0; x < WIDTH; ++x, ++pixel) {
       Vec3 raydir = VEC3_xyz(-WIDTH / 2 + x, HEIGHT / 2 - y, -WIDTH * 1);
-      raydir = vec_scale(raydir, PRECISION);
+      //raydir = vec_scale(raydir, PRECISION);
       raydir = vec_normalize(raydir);
+      printf("Check pixel %04d, raydir %d %d %d\n", x+y*WIDTH, raydir.x, raydir.y, raydir.z);
       *pixel = trace(VEC3_x(0), raydir, spheres, num_spheres, 0);
     }
   }
@@ -296,9 +317,9 @@ int main(int argc, char **argv) {
   const unsigned num_spheres = 7;
   Sphere spheres[num_spheres];
   // position, radius, surface color, reflectivity, transparency, emission color
-  spheres[0] = (Sphere) { .center = VEC3_xyz(0, -10004, 0),
-                          .radius = 10000,
-                          .radius2 = 10000 * 10000,
+  spheres[0] = (Sphere) { .center = VEC3_xyz(0, -1004, 0),
+                          .radius = 1000,
+                          .radius2 = 1000 * 1000,
                           .surfaceColor = VEC3_xyz(80, 80, 80),
                           .emissionColor = VEC3,
                           .transparency = 0,
@@ -349,7 +370,7 @@ int main(int argc, char **argv) {
   for (unsigned i = 0; i < num_spheres; ++i) {
     spheres[i].center = vec_scale(spheres[i].center, PRECISION);
     spheres[i].radius = spheres[i].radius * PRECISION;
-    spheres[i].radius2 = spheres[i].radius2 * PRECISION * PRECISION;
+    spheres[i].radius2 = spheres[i].radius2 * PRECISION;
   }
   render(spheres, num_spheres);
 
