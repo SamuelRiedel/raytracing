@@ -322,12 +322,13 @@ void render(const Sphere *spheres, unsigned num_spheres) {
   Vec3 *pixel = image;
   // Trace rays
   for (int y = 0; y < HEIGHT; ++y) {
-    for (int x = 0; x < WIDTH; ++x, ++pixel) {
+    for (int x = 0; x < WIDTH; ++x) {
       Vec3 raydir = VEC3_xyz(-WIDTH / 2 + x, HEIGHT / 2 - y, -WIDTH * 1);
+      raydir = vec_scale(raydir, 1280/WIDTH);
       raydir = vec_normalize(raydir);
       // printf("Check pixel %04d, raydir %d %d %d\n", x + y * WIDTH, raydir.x,
       //       raydir.y, raydir.z);
-      *pixel = trace(VEC3_x(0), raydir, spheres, num_spheres, 0);
+      pixel[x+y*WIDTH] = trace(VEC3_x(0), raydir, spheres, num_spheres, 0);
     }
   }
   // Save result to a PPM image (keep these flags if you compile under Windows)
