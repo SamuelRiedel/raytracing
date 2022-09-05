@@ -39,8 +39,8 @@
 
 #define WIDTH (1280)
 #define HEIGHT (720)
-//#define WIDTH (16)
-//#define HEIGHT (8)
+//#define WIDTH (32)
+//#define HEIGHT (16)
 
 #define PRECISION (1024)
 #define PRECISION_SQRT (32)
@@ -54,14 +54,42 @@ typedef struct Vec3 {
 
 Vec3 image[WIDTH * HEIGHT];
 
+int sqrtint(int x) {
+  if (x <= 0) {
+    return 0;
+  }
+  unsigned val = x;
+  unsigned a, b;
+
+  if (val < 2)
+    return val; /* avoid div/0 */
+
+  a = PRECISION; /* starting point is relatively unimportant */
+
+  b = val / a;
+  a = (a + b) / 2;
+  b = val / a;
+  a = (a + b) / 2;
+  b = val / a;
+  a = (a + b) / 2;
+  b = val / a;
+  a = (a + b) / 2;
+
+  return a;
+  // return sqrt(x);
+}
 void vec_print(Vec3 v) { printf("%d, %d, %d\n", v.x, v.y, v.z); }
+int vec_dot_unscaled(Vec3 a, Vec3 b) {
+  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
 int vec_dot(Vec3 a, Vec3 b) {
   return (a.x * b.x) / PRECISION + (a.y * b.y) / PRECISION +
          (a.z * b.z) / PRECISION;
 }
 
 int vec_length2(Vec3 v) { return vec_dot(v, v); }
-int vec_length(Vec3 v) { return sqrt(vec_length2(v)); }
+int vec_length(Vec3 v) { return sqrtint(vec_length2(v)); }
 
 Vec3 vec_divide(Vec3 v, int s) {
   v.x /= s;
@@ -100,7 +128,7 @@ Vec3 vec_normalize2(Vec3 v) {
   // vec_print(v);
   int nor2 = vec_length2(v);
   if (nor2 > 0) {
-    int nor = sqrt(nor2);
+    int nor = sqrtint(nor2);
     v = vec_divide(vec_scale(v, PRECISION_SQRT), nor);
     // printf("Normalize v %d %d %d, nor2 %d, nor %d\n", v.x, v.y, v.z, nor2,
     // nor);
@@ -115,23 +143,28 @@ Vec3 vec_normalize(Vec3 v) {
     // Overflow
     int nor2 = vec_length2(vec_divide(v, PRECISION));
     if (nor2 > 0) {
-      int nor = sqrt(nor2 * PRECISION);
+      int nor = sqrtint(nor2 * PRECISION);
       v = vec_divide(v, nor);
+    } else {
+      printf("OVER1\n");
     }
-    printf("OVER\n");
   } else if (vec_length2(v) > (INT_MAX / PRECISION / 4)) {
     int nor2 = vec_length2(v);
     if (nor2 > 0) {
-      int nor = sqrt(nor2);
+      int nor = sqrtint(nor2);
       v = vec_divide(vec_scale(v, PRECISION_SQRT), nor);
+    } else {
+      printf("OVER2\n");
     }
   } else {
     int nor2 = vec_length2(v) * PRECISION;
     if (nor2 > 0) {
-      int nor = sqrt(nor2);
+      int nor = sqrtint(nor2);
       v = vec_divide(vec_scale(v, PRECISION), nor);
       // printf("Normalize v %d %d %d, nor2 %d, nor %d\n", v.x, v.y, v.z, nor2,
       // nor);
+    } else {
+      printf("OVER3\n");
     }
   }
   return v;
@@ -155,11 +188,37 @@ bool intersect(const Sphere sphere, const Vec3 rayorig, const Vec3 raydir,
   if (tca < 0)
     return false;
   int d2 = vec_length2(l) - tca * tca / PRECISION;
+  if (vec_length2(l) < 0) {
+    d2 = vec_dot_unscaled(vec_divide(l, PRECISION), vec_divide(l, PRECISION)) -
+         (tca / PRECISION) * (tca / PRECISION);
+    d2 *= PRECISION;
+  }
   // printf("d2 %d\n", d2);
   if (d2 > sphere.radius2)
     return false;
   int thc2 = sphere.radius2 - d2;
-  int thc = sqrt(thc2) * PRECISION_SQRT;
+  int thc;
+  if (thc2 < 0) {
+    thc2 = sphere.radius2 / PRECISION - d2 / PRECISION;
+    if (thc2 < 0) {
+      printf("WTF %d %d %d\n", tca, d2, sphere.radius2);
+    }
+    thc = sqrtint(thc2) * PRECISION;
+  } else if ((thc2 > INT_MAX / PRECISION / 4) ||
+             (thc2 < INT_MIN / PRECISION / 4)) {
+    thc = sqrtint(thc2) * PRECISION_SQRT;
+  } else if ((thc2 > INT_MAX / PRECISION / PRECISION / 4) ||
+             (thc2 < INT_MIN / PRECISION / PRECISION / 4)) {
+    thc = sqrtint(thc2 * PRECISION);
+  } else if ((thc2 > INT_MAX / PRECISION / PRECISION / PRECISION / 4) ||
+             (thc2 < INT_MIN / PRECISION / PRECISION / PRECISION / 4)) {
+    thc = sqrtint(thc2 * PRECISION * PRECISION) / PRECISION_SQRT;
+  } else {
+    thc = sqrtint(thc2 * PRECISION * PRECISION * PRECISION) / PRECISION;
+    printf("WTF %d %d %d\n", tca, d2, sphere.radius2);
+    printf("%d\n", thc);
+    thc = PRECISION;
+  }
   *t0 = tca - thc;
   *t1 = tca + thc;
   // printf("thc %d, t0 %d, t1 %d\n", thc, *t0, *t1);
@@ -260,7 +319,7 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
               eta * eta * ((PRECISION * PRECISION) - cosi * cosi);
       Vec3 refrdir =
           vec_add(vec_scale(raydir, eta),
-                  vec_scale(nhit, (eta * cosi - sqrt(k)) / PRECISION));
+                  vec_scale(nhit, (eta * cosi - sqrtint(k)) / PRECISION));
       refrdir = vec_normalize(refrdir);
       refraction = trace(vec_subtract(phit, vec_divide(nhit, bias)), refrdir,
                          spheres, num_spheres, depth + 1);
@@ -297,11 +356,11 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
           transmission *= dot;
           Vec3 tmp = vec_scale(sphere->surfaceColor, transmission);
           tmp = vec_multiply(tmp, spheres[i].emissionColor);
-          tmp = vec_divide(tmp, PRECISION * 256); // Divide by 256
+          tmp = vec_divide(tmp, 1); // Divide by 256
           surfaceColor = vec_add(tmp, surfaceColor);
           // surfaceColor = sphere->surfaceColor;
         } else {
-          surfaceColor = VEC3_x(128);
+          // surfaceColor = VEC3_x(128);
         }
         // surfaceColor = VEC3_x(dot*256/PRECISION);
       }
@@ -309,7 +368,8 @@ Vec3 trace(const Vec3 rayorig, const Vec3 raydir, const Sphere *spheres,
     // surfaceColor = VEC3_x(32*sphere_idx);
   }
 
-  return vec_add(surfaceColor, sphere->emissionColor);
+  return vec_divide(vec_add(surfaceColor, sphere->emissionColor),
+                    PRECISION * 256);
 }
 
 //[comment]
@@ -324,11 +384,11 @@ void render(const Sphere *spheres, unsigned num_spheres) {
   for (int y = 0; y < HEIGHT; ++y) {
     for (int x = 0; x < WIDTH; ++x) {
       Vec3 raydir = VEC3_xyz(-WIDTH / 2 + x, HEIGHT / 2 - y, -WIDTH * 1);
-      raydir = vec_scale(raydir, 1280/WIDTH);
+      raydir = vec_scale(raydir, 1280 / WIDTH);
       raydir = vec_normalize(raydir);
       // printf("Check pixel %04d, raydir %d %d %d\n", x + y * WIDTH, raydir.x,
       //       raydir.y, raydir.z);
-      pixel[x+y*WIDTH] = trace(VEC3_x(0), raydir, spheres, num_spheres, 0);
+      pixel[x + y * WIDTH] = trace(VEC3_x(0), raydir, spheres, num_spheres, 0);
     }
   }
   // Save result to a PPM image (keep these flags if you compile under Windows)
